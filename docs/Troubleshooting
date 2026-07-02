@@ -1,0 +1,6 @@
+| Issue                 | Fix                                                 |
+| --------------------- | --------------------------------------------------- |
+| No data connection    | Check `settings get global data_roaming1` = 1       |
+| TTL rules not working | Verify `iptables` installed: `pkg install iptables` |
+| High data usage       | Check logs for blocked domains, adjust firewall     |
+| MTU causes issues     | Change to 1400 in `network-tweaks.sh`               |

@@ -1,0 +1,18 @@
+
+---
+
+## Installation Commands (Copy-Paste Ready)
+
+Run this in Termux to create the entire structure:
+
+```bash
+# Create base directory
+mkdir -p ~/iot-data-shaper/{config,scripts,systemd,docs,logs}
+cd ~/iot-data-shaper
+
+# Save all scripts above to their respective paths
+# Then make executable
+chmod +x setup.sh config/*.sh scripts/*.sh systemd/*.sh
+
+# Run setup
+bash setup.sh

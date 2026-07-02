@@ -1,0 +1,17 @@
+~/iot-data-shaper/
+├── README.md
+├── setup.sh                 # Main installation script
+├── config/
+│   ├── apn-config.sh        # EMnify APN + roaming setup
+│   ├── network-tweaks.sh    # MTU, TTL, TCP optimizations
+│   └── firewall-rules.sh    # iptables/nftables data shaping
+├── scripts/
+│   ├── ttl-spoof.sh         # TTL manipulation for carrier masking
+│   ├── data-monitor.sh      # Live data usage tracker
+│   ├── background-sync.sh   # Batch non-urgent data
+│   └── compress-payload.sh  # Payload compression wrapper
+├── systemd/                 # (or Termux:Boot scripts)
+│   └── start-services.sh
+└── docs/
+    ├── CARRIER-EVASION.md   # How TTL/MTU evade detection
+    └── EMNIFY-SPECS.md      # EMnify APN details

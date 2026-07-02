@@ -1,0 +1,9 @@
+# Check current usage
+bash scripts/data-monitor.sh
+
+# View logs
+tail -f ~/iot-data-shaper/logs/usage.log
+
+# Reset counters (requires root)
+su -c "echo 0 > /sys/class/net/rmnet_data0/statistics/rx_bytes"
+su -c "echo 0 > /sys/class/net/rmnet_data0/statistics/tx_bytes"

@@ -1,0 +1,10 @@
+| Script                        | Purpose              | Run As |
+| ----------------------------- | -------------------- | ------ |
+| `setup.sh`                    | Install everything   | termux |
+| `config/apn-config.sh`        | EMnify APN + roaming | root   |
+| `config/network-tweaks.sh`    | MTU, TTL, TCP        | root   |
+| `config/firewall-rules.sh`    | Block leaks, shape   | root   |
+| `scripts/ttl-spoof.sh`        | TTL manipulation     | termux |
+| `scripts/data-monitor.sh`     | Usage tracking       | termux |
+| `scripts/background-sync.sh`  | Batch uploads        | termux |
+| `scripts/compress-payload.sh` | Payload compression  | termux |

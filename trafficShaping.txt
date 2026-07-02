@@ -1,0 +1,2 @@
+I have a new SIM card for my iot project. Help me shape all packaged send over mobile data as non-user non countable data packages by tweaking mtu, ttl and so on. 
+I need it to stay bellow 50 mbs of counted data.
