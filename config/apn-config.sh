@@ -1,6 +1,5 @@
 #!/system/bin/sh
-# Universal APN Configuration - Auto-detects carrier
-# Supports: EMnify, Telenor (all regions), generic fallback
+# Universal APN - handles SELinux restrictions gracefully
 
 echo "[*] Detecting carrier..."
 
@@ -51,42 +50,29 @@ setprop gsm.operator.numeric "${MCC:-000}${MNC:-00}"
 setprop gsm.sim.operator.numeric "${MCC:-000}${MNC:-00}"
 setprop gsm.apn.sim.operator.numeric "${MCC:-000}${MNC:-00}"
 
-# APN database
+# APN database (silent fail if not available)
 APN_DB="/data/data/com.android.providers.telephony/databases/telephony.db"
 if [ -f "$APN_DB" ] && command -v sqlite3 >/dev/null; then
     sqlite3 "$APN_DB" "INSERT OR REPLACE INTO carriers (name,numeric,mcc,mnc,apn,type,current,protocol,roaming_protocol,carrier_enabled,bearer) VALUES ('${APN_NAME}','${MCC}${MNC}','${MCC}','${MNC}','${APN}','default,supl,dun',1,'IPV4V6','IPV4V6',1,0);" 2>/dev/null
 fi
 
-# Roaming
+# Roaming - try settings, fallback to setprop
 if [ "$ROAMING" = "1" ]; then
-    settings put global data_roaming1 1 2>/dev/null
-    settings put global data_roaming2 1 2>/dev/null
+    settings put global data_roaming1 1 2>/dev/null || true
+    settings put global data_roaming2 1 2>/dev/null || true
     setprop ro.com.android.dataroaming true 2>/dev/null || true
-    SETTINGS_DB="/data/data/com.android.providers.settings/databases/settings.db"
-    if [ -f "$SETTINGS_DB" ] && command -v sqlite3 >/dev/null; then
-        sqlite3 "$SETTINGS_DB" "INSERT OR REPLACE INTO global (name,value) VALUES ('data_roaming1','1');" 2>/dev/null
-        sqlite3 "$SETTINGS_DB" "INSERT OR REPLACE INTO global (name,value) VALUES ('data_roaming2','1');" 2>/dev/null
-    fi
 fi
 
-settings put global roaming_indication_needed 0 2>/dev/null
+settings put global roaming_indication_needed 0 2>/dev/null || true
 
-# Restart radio
-svc data disable 2>/dev/null || service call phone 27 2>/dev/null
-sleep 2
-svc data enable 2>/dev/null || service call phone 26 2>/dev/null
+# Restart radio - try multiple methods
+(svc data disable >/dev/null 2>&1 || service call phone 27 >/dev/null 2>&1) && sleep 2 && (svc data enable >/dev/null 2>&1 || service call phone 26 >/dev/null 2>&1) || true
 
 sleep 3
 
 FINAL_OP=$(getprop gsm.apn.sim.operator.numeric 2>/dev/null)
-FINAL_ROAM=$(settings get global data_roaming1 2>/dev/null || echo "unknown")
 echo "[+] Operator: ${FINAL_OP:-$CURRENT_MCCMNC}"
 echo "[+] APN: $APN"
-echo "[+] Roaming: $FINAL_ROAM"
 
-# Check connection state
-if dumpsys telephony.registry | grep -q 'mDataConnectionState=2' 2>/dev/null; then
-    echo "[+] Data: CONNECTED"
-else
-    echo "[*] Data: CONNECTING..."
-fi
+# Check connection
+dumpsys telephony.registry 2>/dev/null | grep -q 'mDataConnectionState=2' && echo "[+] Data: CONNECTED" || echo "[*] Data: CONNECTING..."
