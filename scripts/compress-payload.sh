@@ -1,6 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Compression wrapper for IoT payloads
-# BUGFIXED: separators=(',',':') was broken as separators=(',':')
 
 PAYLOAD="$1"; METHOD="${2:-gzip}"
 

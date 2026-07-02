@@ -23,8 +23,7 @@ iptables -A INPUT -p tcp --syn -j DROP
 iptables -A OUTPUT -o "$IFACE" -m limit --limit 50/minute --limit-burst 100 -j ACCEPT
 iptables -A OUTPUT -o "$IFACE" -j DROP
 
-IOT_SERVER="YOUR_SERVER_IP"
-iptables -t mangle -A OUTPUT -d "$IOT_SERVER" -j MARK --set-mark 10
+iptables -t mangle -A OUTPUT -d api.datacake.co -j MARK --set-mark 10
 
 tc qdisc add dev "$IFACE" root handle 1: htb default 20 2>/dev/null
 tc class add dev "$IFACE" parent 1: classid 1:10 htb rate 50kbit ceil 100kbit 2>/dev/null

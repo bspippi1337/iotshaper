@@ -1,23 +1,36 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Background Sync with Compression
+# Background Sync with Datacake
 
 QUEUE_DIR="$HOME/iot-data-shaper/queue"
 mkdir -p "$QUEUE_DIR"
-IOT_ENDPOINT="https://your-server.com/api/ingest"
+source "$HOME/iot-data-shaper/scripts/datacake-config.sh"
 
-queue_payload() { echo "$1" > "$QUEUE_DIR/$(date +%s).json"; echo "[+] Queued"; }
+queue_payload() {
+    local payload="$1"
+    local ts=$(date +%s)
+    echo "$payload" > "$QUEUE_DIR/$ts.json"
+    echo "[+] Queued payload (ts=$ts)"
+}
 
 flush_queue() {
     [ -z "$(ls -A $QUEUE_DIR)" ] && { echo "[*] Queue empty"; return; }
-    COMBINED="$QUEUE_DIR/batch_$(date +%s).json"
-    echo "[" > "$COMBINED"; first=true
+    echo "[*] Sending to Datacake..."
     for f in "$QUEUE_DIR"/*.json; do
-        [ "$f" = "$COMBINED" ] && continue
-        [ "$first" = true ] || echo "," >> "$COMBINED"
-        cat "$f" >> "$COMBINED"; first=false; rm "$f"
+        [ -f "$f" ] || continue
+        curl -s -X POST \
+            -H "Authorization: Token $DATACAKE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "@$f" \
+            --connect-timeout 10 \
+            --max-time 30 \
+            "$DATACAKE_API/devices/$DATACAKE_DEVICE/data/" && rm "$f"
+        sleep 1
     done
-    echo "]" >> "$COMBINED"; gzip -c "$COMBINED" > "$COMBINED.gz"
-    curl -s -X POST -H "Content-Encoding: gzip" -H "Content-Type: application/json" --data-binary "@$COMBINED.gz" --connect-timeout 10 --max-time 30 "$IOT_ENDPOINT" && rm "$COMBINED" "$COMBINED.gz"
+    echo "[+] Flush complete"
 }
 
-case "$1" in queue) queue_payload "$2" ;; flush) flush_queue ;; *) echo "Usage: {queue '<json>'|flush}" ;; esac
+case "$1" in
+    queue) queue_payload "$2" ;;
+    flush) flush_queue ;;
+    *) echo "Usage: {queue '<json>'|flush}" ;;
+esac

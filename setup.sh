@@ -8,7 +8,7 @@ REPO_DIR="$HOME/iot-data-shaper"
 CONFIG_DIR="$REPO_DIR/config"
 SCRIPT_DIR="$REPO_DIR/scripts"
 
-echo "[*] IoT Data Shaper Setup for EMnify"
+echo "[*] IoT Data Shaper Setup for EMnify + Datacake"
 echo "[*] Target: <50MB countable data/month"
 
 mkdir -p "$CONFIG_DIR" "$SCRIPT_DIR" "$REPO_DIR/logs" "$REPO_DIR/queue"

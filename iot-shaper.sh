@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ============================================================================
-# IoT Data Shaper for EMnify - Single Self-Extracting Script
+# IoT Data Shaper for EMnify + Datacake
 # ============================================================================
 # Run: bash iot-shaper.sh install
 #      bash iot-shaper.sh apply     (needs root)
@@ -16,26 +16,38 @@ SCRIPT_DIR="$REPO_DIR/scripts"
 LOG_DIR="$REPO_DIR/logs"
 QUEUE_DIR="$REPO_DIR/queue"
 
-IOT_SERVER="YOUR_SERVER_IP"
-IOT_ENDPOINT="https://your-server.com/api/ingest"
-
-# ============================================================================
-# INSTALL - Create directory structure and extract all scripts
-# ============================================================================
 install_all() {
     echo "[*] Installing IoT Data Shaper to $REPO_DIR"
     mkdir -p "$CONFIG_DIR" "$SCRIPT_DIR" "$LOG_DIR" "$QUEUE_DIR"
 
-    # --- README.md ---
+    # --- Interactive config setup ---
+    echo ""
+    echo "=== Datacake Configuration ==="
+    echo "Get your API Token from: https://app.datacake.co"
+    echo "Device Serial is on your device page"
+    echo ""
+    read -p "Enter Datacake API Token: " token_input
+    read -p "Enter Datacake Device Serial: " device_input
+
+    cat > "$SCRIPT_DIR/datacake-config.sh" <<EOF
+#!/data/data/com.termux/files/usr/bin/bash
+# Datacake Configuration
+# Generated on $(date)
+
+DATACAKE_TOKEN="$token_input"
+DATACAKE_DEVICE="$device_input"
+DATACAKE_API="https://api.datacake.co/integrations/api/v1"
+EOF
+
     cat > "$REPO_DIR/README.md" <<'DOC'
-# IoT Data Shaper for EMnify
+# IoT Data Shaper for EMnify + Datacake
 
 Target: <50MB countable data/month.
 
 ## Quick Start
 
 ```bash
-bash iot-shaper.sh install   # Extract all scripts
+bash iot-shaper.sh install   # Extract all scripts + enter credentials
 bash iot-shaper.sh apply     # Apply network tweaks (root)
 bash iot-shaper.sh monitor   # Check usage
 ```
@@ -44,13 +56,13 @@ bash iot-shaper.sh monitor   # Check usage
 
 | Command | Description |
 |---------|-------------|
-| `install` | Create dirs and extract all scripts |
+| `install` | Create dirs, enter Datacake credentials |
 | `apply` | Apply APN + network + firewall tweaks (root) |
 | `monitor` | Show live data usage |
-| `ttl [64|65|1|random|reset]` | Change TTL mode |
+| `ttl [64\|65\|1\|random\|reset]` | Change TTL mode |
 | `queue '<json>'` | Queue a payload for batch send |
-| `flush` | Send all queued payloads |
-| `compress '<json>' [gzip|brotli|lzma|minify]` | Compress payload |
+| `flush` | Send all queued payloads to Datacake |
+| `compress '<json>' [gzip\|brotli\|lzma\|minify]` | Compress payload |
 
 ## Files
 
@@ -59,14 +71,15 @@ bash iot-shaper.sh monitor   # Check usage
 - `config/firewall-rules.sh` — Block telemetry, rate limit
 - `scripts/ttl-spoof.sh` — TTL manipulation
 - `scripts/data-monitor.sh` — Usage tracking
-- `scripts/background-sync.sh` — Batch uploads
+- `scripts/background-sync.sh` — Batch uploads to Datacake
 - `scripts/compress-payload.sh` — Payload compression
+- `scripts/datacake-config.sh` — YOUR credentials (auto-generated)
 - `systemd/start-services.sh` — Termux:Boot autostart
 - `docs/CARRIER-EVASION.md` — How carriers count data
 - `docs/EMNIFY-SPECS.md` — EMnify reference
+- `docs/DATACAKE-SETUP.md` — Datacake configuration
 DOC
 
-    # --- config/apn-config.sh ---
     cat > "$CONFIG_DIR/apn-config.sh" <<'APN'
 #!/system/bin/sh
 echo "[*] Configuring EMnify APN..."
@@ -88,7 +101,6 @@ echo "[+] Operator: $(getprop gsm.apn.sim.operator.numeric)"
 echo "[+] Roaming: $(settings get global data_roaming1)"
 APN
 
-    # --- config/network-tweaks.sh ---
     cat > "$CONFIG_DIR/network-tweaks.sh" <<'NET'
 #!/system/bin/sh
 IFACE=$(ip route | grep default | awk '{print $5}' | head -1)
@@ -116,7 +128,6 @@ iptables -t nat -A OUTPUT -p tcp --dport 53 -j DNAT --to-destination 8.8.8.8:53
 echo "[+] DNS routed via TCP"
 NET
 
-    # --- config/firewall-rules.sh ---
     cat > "$CONFIG_DIR/firewall-rules.sh" <<'FW'
 #!/system/bin/sh
 IFACE=$(ip route | grep default | awk '{print $5}' | head -1)
@@ -134,8 +145,7 @@ iptables -A INPUT -p tcp --syn -m limit --limit 1/second --limit-burst 3 -j ACCE
 iptables -A INPUT -p tcp --syn -j DROP
 iptables -A OUTPUT -o "$IFACE" -m limit --limit 50/minute --limit-burst 100 -j ACCEPT
 iptables -A OUTPUT -o "$IFACE" -j DROP
-IOT_SERVER="YOUR_SERVER_IP"
-iptables -t mangle -A OUTPUT -d "$IOT_SERVER" -j MARK --set-mark 10
+iptables -t mangle -A OUTPUT -d api.datacake.co -j MARK --set-mark 10
 tc qdisc add dev "$IFACE" root handle 1: htb default 20 2>/dev/null
 tc class add dev "$IFACE" parent 1: classid 1:10 htb rate 50kbit ceil 100kbit 2>/dev/null
 tc class add dev "$IFACE" parent 1: classid 1:20 htb rate 1kbit ceil 5kbit 2>/dev/null
@@ -143,7 +153,6 @@ tc filter add dev "$IFACE" protocol ip parent 1:0 prio 1 handle 10 fw flowid 1:1
 echo "[+] Firewall active"
 FW
 
-    # --- scripts/ttl-spoof.sh ---
     cat > "$SCRIPT_DIR/ttl-spoof.sh" <<'TTL'
 #!/data/data/com.termux/files/usr/bin/bash
 IFACE=$(su -c "ip route | grep default | awk '{print $5}' | head -1")
@@ -156,7 +165,6 @@ case "$1" in
 esac
 TTL
 
-    # --- scripts/data-monitor.sh ---
     cat > "$SCRIPT_DIR/data-monitor.sh" <<'MON'
 #!/data/data/com.termux/files/usr/bin/bash
 LOG_DIR="$HOME/iot-data-shaper/logs"
@@ -182,25 +190,43 @@ echo "Total:     ${TOTAL_MB}MB / 50MB"
 echo "Remaining: $((50 - TOTAL_MB))MB"
 MON
 
-    # --- scripts/background-sync.sh ---
     cat > "$SCRIPT_DIR/background-sync.sh" <<'SYNC'
 #!/data/data/com.termux/files/usr/bin/bash
 QUEUE_DIR="$HOME/iot-data-shaper/queue"
 mkdir -p "$QUEUE_DIR"
-IOT_ENDPOINT="https://your-server.com/api/ingest"
-queue_payload() { echo "$1" > "$QUEUE_DIR/$(date +%s).json"; echo "[+] Queued"; }
+source "$HOME/iot-data-shaper/scripts/datacake-config.sh"
+
+queue_payload() {
+    local payload="$1"
+    local ts=$(date +%s)
+    echo "$payload" > "$QUEUE_DIR/$ts.json"
+    echo "[+] Queued payload (ts=$ts)"
+}
+
 flush_queue() {
     [ -z "$(ls -A $QUEUE_DIR)" ] && { echo "[*] Queue empty"; return; }
-    COMBINED="$QUEUE_DIR/batch_$(date +%s).json"
-    echo "[" > "$COMBINED"; first=true
-    for f in "$QUEUE_DIR"/*.json; do [ "$f" = "$COMBINED" ] && continue; [ "$first" = true ] || echo "," >> "$COMBINED"; cat "$f" >> "$COMBINED"; first=false; rm "$f"; done
-    echo "]" >> "$COMBINED"; gzip -c "$COMBINED" > "$COMBINED.gz"
-    curl -s -X POST -H "Content-Encoding: gzip" -H "Content-Type: application/json" --data-binary "@$COMBINED.gz" --connect-timeout 10 --max-time 30 "$IOT_ENDPOINT" && rm "$COMBINED" "$COMBINED.gz"
+    echo "[*] Sending to Datacake..."
+    for f in "$QUEUE_DIR"/*.json; do
+        [ -f "$f" ] || continue
+        curl -s -X POST \
+            -H "Authorization: Token $DATACAKE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "@$f" \
+            --connect-timeout 10 \
+            --max-time 30 \
+            "$DATACAKE_API/devices/$DATACAKE_DEVICE/data/" && rm "$f"
+        sleep 1
+    done
+    echo "[+] Flush complete"
 }
-case "$1" in queue) queue_payload "$2" ;; flush) flush_queue ;; *) echo "Usage: {queue '<json>'|flush}" ;; esac
+
+case "$1" in
+    queue) queue_payload "$2" ;;
+    flush) flush_queue ;;
+    *) echo "Usage: {queue '<json>'|flush}" ;;
+esac
 SYNC
 
-    # --- scripts/compress-payload.sh --- BUGFIXED
     cat > "$SCRIPT_DIR/compress-payload.sh" <<'COMP'
 #!/data/data/com.termux/files/usr/bin/bash
 PAYLOAD="$1"; METHOD="${2:-gzip}"
@@ -212,7 +238,6 @@ case "$METHOD" in
 esac
 COMP
 
-    # --- systemd/start-services.sh ---
     mkdir -p "$REPO_DIR/systemd"
     cat > "$REPO_DIR/systemd/start-services.sh" <<'BOOT'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -222,10 +247,12 @@ tsu -c "bash $REPO_DIR/config/apn-config.sh"
 tsu -c "bash $REPO_DIR/config/network-tweaks.sh"
 tsu -c "bash $REPO_DIR/config/firewall-rules.sh"
 bash "$REPO_DIR/scripts/data-monitor.sh"
-while true; do bash "$REPO_DIR/scripts/background-sync.sh" flush; sleep 900; done
+while true; do
+    bash "$REPO_DIR/scripts/background-sync.sh" flush
+    sleep 900
+done
 BOOT
 
-    # --- docs/CARRIER-EVASION.md ---
     mkdir -p "$REPO_DIR/docs"
     cat > "$REPO_DIR/docs/CARRIER-EVASION.md" <<'DOC'
 # Carrier Data Counting Evasion
@@ -245,7 +272,7 @@ BOOT
 | 1 | Local | May be dropped |
 
 ## MTU Optimization
-Standard MTU=5000. Mobile adds GTP(xb)+IPsec(20-40b) = fragmentation.
+Standard MTU=1500. Mobile adds GTP(8b)+IPsec(20-40b) = fragmentation.
 Optimal IoT MTU=1280 — no fragmentation, less retransmission.
 
 ## Rules
@@ -256,7 +283,6 @@ Optimal IoT MTU=1280 — no fragmentation, less retransmission.
 5. UDP may count differently than TCP
 DOC
 
-    # --- docs/EMNIFY-SPECS.md ---
     cat > "$REPO_DIR/docs/EMNIFY-SPECS.md" <<'DOC'
 # EMnify IoT SIM
 
@@ -285,18 +311,59 @@ Required. Global SIM. No roaming charges.
 4. Private APN if available
 DOC
 
-    # Make executable
+    cat > "$REPO_DIR/docs/DATACAKE-SETUP.md" <<'DOC'
+# Datacake Setup Guide
+
+## 1. Sign Up
+Go to https://datacake.co and create a free account.
+
+## 2. Create a Device
+1. Click "Add Device"
+2. Choose "API" as integration type
+3. Note your **Device Serial**
+4. Go to Device Settings → API → copy **API Token**
+
+## 3. Configure Fields
+In the Datacake dashboard, add fields matching your JSON keys:
+
+| Field Name | Type | Identifier | Unit |
+|------------|------|------------|------|
+| Temperature | Float | `temp` | °C |
+| Battery | Integer | `bat` | % |
+| Humidity | Float | `hum` | % |
+
+## 4. Configure This Tool
+Run `bash iot-shaper.sh install` and enter your credentials when prompted.
+
+## 5. Test
+
+```bash
+bash iot-shaper.sh queue '{"temp":23.5,"bat":87}'
+bash iot-shaper.sh flush
+```
+
+## 6. JSON Format
+
+Datacake expects flat JSON with field identifiers as keys:
+
+```json
+{"temp": 23.5, "bat": 87, "hum": 45.2}
+```
+
+## Free Tier Limits
+- 1 device free
+- 10,000 API calls/month
+- 30-day data retention
+DOC
+
     chmod +x "$CONFIG_DIR"/*.sh "$SCRIPT_DIR"/*.sh "$REPO_DIR/systemd"/*.sh
 
+    echo ""
     echo "[+] Installed to $REPO_DIR"
-    echo "[*] Edit IOT_SERVER in config/firewall-rules.sh"
-    echo "[*] Edit IOT_ENDPOINT in scripts/background-sync.sh"
+    echo "[+] Datacake config saved to scripts/datacake-config.sh"
     echo "[*] Run 'bash iot-shaper.sh apply' (as root) to activate"
 }
 
-# ============================================================================
-# APPLY - Run all root-level tweaks
-# ============================================================================
 apply_tweaks() {
     if ! su -c "id" >/dev/null 2>&1; then
         echo "[!] Root required. Phone must be rooted."
@@ -309,40 +376,12 @@ apply_tweaks() {
     echo "[+] All tweaks applied."
 }
 
-# ============================================================================
-# MONITOR - Show data usage
-# ============================================================================
-show_monitor() {
-    bash "$SCRIPT_DIR/data-monitor.sh"
-}
+show_monitor() { bash "$SCRIPT_DIR/data-monitor.sh"; }
+set_ttl() { bash "$SCRIPT_DIR/ttl-spoof.sh" "$1"; }
+queue_payload() { bash "$SCRIPT_DIR/background-sync.sh" queue "$1"; }
+flush_queue() { bash "$SCRIPT_DIR/background-sync.sh" flush; }
+compress_payload() { bash "$SCRIPT_DIR/compress-payload.sh" "$1" "$2"; }
 
-# ============================================================================
-# TTL - Change TTL mode
-# ============================================================================
-set_ttl() {
-    bash "$SCRIPT_DIR/ttl-spoof.sh" "$1"
-}
-
-# ============================================================================
-# QUEUE / FLUSH - Background sync
-# ============================================================================
-queue_payload() {
-    bash "$SCRIPT_DIR/background-sync.sh" queue "$1"
-}
-flush_queue() {
-    bash "$SCRIPT_DIR/background-sync.sh" flush
-}
-
-# ============================================================================
-# COMPRESS - Compress payload
-# ============================================================================
-compress_payload() {
-    bash "$SCRIPT_DIR/compress-payload.sh" "$1" "$2"
-}
-
-# ============================================================================
-# MAIN DISPATCH
-# ============================================================================
 case "$1" in
     install) install_all ;;
     apply) apply_tweaks ;;
@@ -352,14 +391,14 @@ case "$1" in
     flush) flush_queue ;;
     compress) compress_payload "$2" "$3" ;;
     *)
-        echo "IoT Data Shaper for EMnify"
+        echo "IoT Data Shaper for EMnify + Datacake"
         echo "Usage:"
-        echo "  bash $0 install              # Extract all scripts"
+        echo "  bash $0 install              # Setup + enter credentials"
         echo "  bash $0 apply                # Apply tweaks (root)"
         echo "  bash $0 monitor              # Show data usage"
         echo "  bash $0 ttl [64|65|1|random|reset]"
         echo "  bash $0 queue '<json>'       # Queue payload"
-        echo "  bash $0 flush                # Send queued payloads"
+        echo "  bash $0 flush                # Send to Datacake"
         echo "  bash $0 compress '<json>' [gzip|brotli|lzma|minify]"
         ;;
 esac
