@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Universal Data Monitor - Works with any interface
+# Data Usage Monitor
 
 LOG_DIR="$HOME/iot-data-shaper/logs"
 mkdir -p "$LOG_DIR"
@@ -7,14 +7,12 @@ LOG_FILE="$LOG_DIR/usage.log"
 ALERT_FILE="$LOG_DIR/alert.flag"
 THRESHOLD=$((50 * 1024 * 1024))
 
-# Detect interface
 IFACE=$(cat /data/local/tmp/iotshaper_iface 2>/dev/null)
 [ -z "$IFACE" ] && IFACE=$(su -c "ip link show | grep -E 'ccmni[0-9]+|rmnet_data[0-9]+|rmnet[0-9]+|eth[0-9]+' | grep 'UP,LOWER_UP' | grep -v 'wlan\|lo' | head -1 | awk -F: '{print \$2}' | awk '{print \$1}'")
 [ -z "$IFACE" ] && IFACE=$(su -c "ip route | grep default | awk '{print \$5}' | grep -v 'wlan\|lo' | head -1")
 [ -z "$IFACE" ] && IFACE="ccmni1"
 [ -z "$IFACE" ] && IFACE="rmnet_data0"
 
-# Read stats
 RX=$(cat /sys/class/net/$IFACE/statistics/rx_bytes 2>/dev/null || echo 0)
 TX=$(cat /sys/class/net/$IFACE/statistics/tx_bytes 2>/dev/null || echo 0)
 TOTAL=$((RX + TX))

@@ -14,9 +14,3 @@
 - PSM (Power Saving Mode)
 - eDRX (extended DRX)
 - CGNAT (carrier-grade NAT)
-
-## Notes
-- Standard PIN: 1234 (usually disabled)
-- PIN2: 0000
-- Data overhead includes IP+UDP headers (28 bytes min)
-- Control plane traffic (attach/detach) not rated

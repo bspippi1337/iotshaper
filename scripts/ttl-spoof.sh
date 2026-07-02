@@ -1,5 +1,5 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Universal TTL Spoofing
+# TTL Spoofing
 
 IFACE=$(cat /data/local/tmp/iotshaper_iface 2>/dev/null)
 [ -z "$IFACE" ] && IFACE=$(su -c "ip link show | grep -E 'ccmni[0-9]+|rmnet_data[0-9]+|rmnet[0-9]+|eth[0-9]+' | grep 'UP,LOWER_UP' | grep -v 'wlan\|lo' | head -1 | awk -F: '{print \$2}' | awk '{print \$1}'")
